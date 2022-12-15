@@ -1,0 +1,44 @@
+name: unit test
+on:
+  pull_request:
+    branches:
+      - 'main'
+  workflow_dispatch:
+jobs:
+  unit_test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+      - name: Check out
+        uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: 11
+      - name: Create secrets file
+        run: |
+          echo "${{ secrets.SECRETS_FILE }}" | base64 -d > secrets.defaults.properties
+      - uses: gradle/gradle-build-action@v2
+      - name: Run unit test and Measure coverage
+        run: |
+          ./gradlew --no-daemon jacocoTestDebugUnitTestReport
+      - name: Publish Jacoco Report
+        if: cancelled() != true
+        uses: madrapps/jacoco-report@v1.3
+        with:
+          paths: |
+            ${{ github.workspace }}/app/build/jacoco/jacoco.xml,
+            ${{ github.workspace }}/repository/build/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 40
+          min-coverage-changed-files: 60
+      - name: Publish Test Report
+        if: cancelled() != true
+        uses: mikepenz/action-junit-report@v2
+        with:
+          report_paths: '**/build/test-results/*/TEST-*.xml'
